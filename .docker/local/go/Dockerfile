@@ -23,7 +23,7 @@ RUN mkdir -p ${GOPATH}/src/
 
 RUN curl -sSfL https://raw.githubusercontent.com/cosmtrek/air/master/install.sh | sh -s
 
-EXPOSE 80
+EXPOSE 8080
 
 COPY init/docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

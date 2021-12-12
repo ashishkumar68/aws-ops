@@ -9,7 +9,7 @@ services:
     build: ./.docker/local/go
     platform: linux/amd64
     ports:
-      - 8082:80
+      - 8082:8080
     env_file:
       - ./.docker/local/.env
     volumes:

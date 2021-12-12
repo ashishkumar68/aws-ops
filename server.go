@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/gorilla/mux"
+	"log"
 	"net/http"
 	"os"
 )
@@ -14,10 +15,10 @@ func main() {
 	http.Handle("/", r)
 	err := http.ListenAndServe(fmt.Sprintf(":%s", port), r)
 	if err != nil {
-		fmt.Println("Could not start the HTTP server.")
-		fmt.Println(err)
+		log.Println("Could not start the HTTP server.")
+		log.Println(err)
 		return
 	}
 
-	fmt.Println("running server on port", port)
+	log.Println("running server on port", port)
 }
