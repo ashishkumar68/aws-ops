@@ -1,0 +1,19 @@
+version: '3'
+
+networks:
+  aws-ops-network:
+
+services:
+  aws-ops-app:
+    container_name: aws-ops-app
+    build: ./.docker/local/go
+    platform: linux/amd64
+    ports:
+      - 8082:80
+    env_file:
+      - ./.docker/local/.env
+    volumes:
+      - .:/go-workspace/src/github.com/ashishkumar68/aws-ops
+    networks:
+      - aws-ops-network
+    hostname: aws_ops_app
