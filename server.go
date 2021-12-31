@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/ashishkumar68/aws-ops/controller"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 func main() {
 	port := os.Getenv("HTTP_PORT")
 	r := mux.NewRouter()
+	r.HandleFunc("/resnap-database", controller.ResnapRDSByName).Methods("GET")
 
 	http.Handle("/", r)
 	err := http.ListenAndServe(fmt.Sprintf(":%s", port), r)

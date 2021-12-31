@@ -16,6 +16,7 @@ ENV GOPATH='/go-workspace'
 ENV GOBIN=${GOPATH}/bin
 ENV GOSRC=${GOPATH}/src
 ENV PROJECTDIR=${GOSRC}/github.com/ashishkumar68/aws-ops
+ENV PATH "$PATH:$GOBIN"
 
 RUN mkdir -p ${GOPATH}/bin/
 RUN mkdir -p ${GOPATH}/pkg/
@@ -31,3 +32,4 @@ ENTRYPOINT ["/entrypoint.sh"]
 
 WORKDIR ${PROJECTDIR}
 CMD ["air"]
+#CMD ["go", "run", "server.go"]

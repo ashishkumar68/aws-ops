@@ -12,6 +12,10 @@ services:
       - 8082:8080
     env_file:
       - ./.docker/local/.env
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
     volumes:
       - .:/go-workspace/src/github.com/ashishkumar68/aws-ops
     networks:
