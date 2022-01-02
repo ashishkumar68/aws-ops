@@ -94,8 +94,8 @@ func (this *RDSSnapshotService) ApplySecurityGroupToInstance(
 
 	modifyInstanceInput := rds.ModifyDBInstanceInput{
 		DBInstanceIdentifier: &instanceName,
-		DBSecurityGroups: securityGroups,
-		ApplyImmediately: false,
+		VpcSecurityGroupIds: securityGroups,
+		ApplyImmediately: true,
 	}
 	modifyInstanceOut, err := this.client.ModifyDBInstance(context.TODO(), &modifyInstanceInput)
 	if err != nil {
@@ -147,17 +147,6 @@ func (this *RDSSnapshotService) RunResnapMessageListener() {
 			oldInstance = &instanceDetails
 			log.Println(fmt.Sprintf("Found renamed old instance state: %s", oldInstanceState))
 		}
-		// then run new instance launch
-		log.Println(fmt.Sprintf("launching new instance: %s", *rdsInstance.DBInstanceIdentifier))
-		resnapInstance, err := this.RunResnapForInstance(rdsInstance)
-		if err != nil {
-			log.Println(fmt.Sprintf(
-				"could not start resnap for instance: %s due to error: %s",
-				*rdsInstance.DBInstanceIdentifier,
-				err))
-			continue
-		}
-		log.Println(fmt.Sprintf("sucessfully started launch for new instance: %s", *resnapInstance.DBInstanceIdentifier))
 		log.Println(fmt.Sprintf("deleting old instance: %s", oldInstanceName))
 		deletedInstance, err := this.DeleteInstance(*oldInstance, true, true)
 		if err != nil {
@@ -168,6 +157,17 @@ func (this *RDSSnapshotService) RunResnapMessageListener() {
 			continue
 		}
 		log.Println(fmt.Sprintf("Started delete for old instance: %s", *deletedInstance.DBInstanceIdentifier))
+		// then run new instance launch
+		log.Println(fmt.Sprintf("launching new instance: %s", *rdsInstance.DBInstanceIdentifier))
+		resnapInstance, err := this.RunResnapForInstance(rdsInstance)
+		if err != nil {
+			log.Println(fmt.Sprintf(
+				"could not start resnap for instance: %s due to error: %s",
+				*rdsInstance.DBInstanceIdentifier,
+				err))
+			continue
+		}
+		log.Println(fmt.Sprintf("sucessfully created new instance: %s", *resnapInstance.DBInstanceIdentifier))
 	}
 }
 
@@ -189,7 +189,7 @@ func (this *RDSSnapshotService) RunResnapForInstance(resnapInstance types.DBInst
 	if err != nil {
 		return nil, fmt.Errorf("could not wait for instance: %s availability due to error: %s", err)
 	}
-	dbInstance, err = this.ApplySecurityGroupToInstance(*dbInstance.DBInstanceIdentifier, []string{"default"})
+	dbInstance, err = this.ApplySecurityGroupToInstance(*dbInstance.DBInstanceIdentifier, []string{"sg-a09f8ecd"})
 	if err != nil {
 		return nil, fmt.Errorf("could not apply security group to instance due to error: %s", err)
 	}
@@ -213,7 +213,7 @@ func (this *RDSSnapshotService) WaitForInstanceAvailability(instanceName string)
 			continue
 		}
 		instanceState = *instanceDetails.DBInstanceStatus
-		log.Println(fmt.Sprintf("Found instance state: %s after waiting: ", instanceState))
+		log.Println(fmt.Sprintf("Found instance state: %s after waiting.", instanceState))
 	}
 	return nil
 }
