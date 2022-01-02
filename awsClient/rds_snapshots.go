@@ -11,6 +11,7 @@ import (
 
 var (
 	INSTANCE_STATE_AVAILABLE = "available"
+	INSTANCE_STATE_RENAMING = "renaming"
 
 	rdsResnapMessageChan chan types.DBInstance
 )
@@ -124,8 +125,8 @@ func (this *RDSSnapshotService) RenameInstance(
 }
 
 func (this *RDSSnapshotService) RunResnapMessageListener() {
+	rdsResnapMessageChan = make(chan types.DBInstance, 5)
 	log.Println("started resnap message listener.")
-
 	for rdsInstance := range rdsResnapMessageChan {
 		oldInstanceName := *rdsInstance.DBInstanceIdentifier + "-old"
 		oldInstance, err := this.RenameInstance(rdsInstance, oldInstanceName)
@@ -133,30 +134,37 @@ func (this *RDSSnapshotService) RunResnapMessageListener() {
 			log.Println("could not rename instance for resnap process, exiting..")
 			continue
 		}
-		oldInstanceState := *oldInstance.DBInstanceStatus
+		oldInstanceState := INSTANCE_STATE_RENAMING
 		// Wait until the re-name changes get applied to the old instance.
 		for oldInstanceState != INSTANCE_STATE_AVAILABLE {
 			time.Sleep(30 * time.Second)
-			instanceDetails, err := this.GetRDSInstanceDetails(*oldInstance.DBInstanceIdentifier)
+			instanceDetails, err := this.GetRDSInstanceDetails(oldInstanceName)
 			if err != nil {
-				log.Println(fmt.Sprintf("could not fetch instance details:%s", *oldInstance.DBInstanceIdentifier))
+				log.Println(fmt.Sprintf("could not fetch instance details:%s error:%s", oldInstanceName, err))
 				continue
 			}
 			oldInstanceState = *instanceDetails.DBInstanceStatus
+			oldInstance = &instanceDetails
 			log.Println(fmt.Sprintf("Found renamed old instance state: %s", oldInstanceState))
 		}
 		// then run new instance launch
 		log.Println(fmt.Sprintf("launching new instance: %s", *rdsInstance.DBInstanceIdentifier))
 		resnapInstance, err := this.RunResnapForInstance(rdsInstance)
 		if err != nil {
-			log.Println(fmt.Sprintf("could not start resnap for instance: %s", *rdsInstance.DBInstanceIdentifier))
+			log.Println(fmt.Sprintf(
+				"could not start resnap for instance: %s due to error: %s",
+				*rdsInstance.DBInstanceIdentifier,
+				err))
 			continue
 		}
 		log.Println(fmt.Sprintf("sucessfully started launch for new instance: %s", *resnapInstance.DBInstanceIdentifier))
-		log.Println(fmt.Sprintf("deleting old instance: %s", *oldInstance.DBInstanceIdentifier))
-		deletedInstance, err := this.DeleteInstance(*oldInstance, false, false)
+		log.Println(fmt.Sprintf("deleting old instance: %s", oldInstanceName))
+		deletedInstance, err := this.DeleteInstance(*oldInstance, true, true)
 		if err != nil {
-			log.Println(fmt.Sprintf("could not start delete for instance: %s", *oldInstance.DBInstanceIdentifier))
+			log.Println(fmt.Sprintf(
+				"could not start delete for instance: %s due to error: %s",
+				*oldInstance.DBInstanceIdentifier,
+				err))
 			continue
 		}
 		log.Println(fmt.Sprintf("Started delete for old instance: %s", *deletedInstance.DBInstanceIdentifier))
@@ -177,12 +185,37 @@ func (this *RDSSnapshotService) RunResnapForInstance(resnapInstance types.DBInst
 	if err != nil {
 		return nil, fmt.Errorf("could not restore instance from snapshot due to error: %s", err)
 	}
+	err = this.WaitForInstanceAvailability(*dbInstance.DBInstanceIdentifier)
+	if err != nil {
+		return nil, fmt.Errorf("could not wait for instance: %s availability due to error: %s", err)
+	}
 	dbInstance, err = this.ApplySecurityGroupToInstance(*dbInstance.DBInstanceIdentifier, []string{"default"})
 	if err != nil {
 		return nil, fmt.Errorf("could not apply security group to instance due to error: %s", err)
 	}
 
 	return dbInstance, err
+}
+
+func (this *RDSSnapshotService) WaitForInstanceAvailability(instanceName string) error {
+	time.Sleep(15 * time.Second) // wait for instance to acquire a state
+	instanceDetails, err := this.GetRDSInstanceDetails(instanceName)
+	if err != nil {
+		return fmt.Errorf("could not fetch instance:%s details due to error: %s", instanceName, err)
+	}
+	instanceState := *instanceDetails.DBInstanceStatus
+	for instanceState != INSTANCE_STATE_AVAILABLE {
+		log.Println(fmt.Sprintf("Waiting 30 seconds more.."))
+		time.Sleep(30 * time.Second) // more wait 30 sec.
+		instanceDetails, err = this.GetRDSInstanceDetails(instanceName)
+		if err != nil {
+			log.Println(fmt.Sprintf("could not fetch instance details:%s error:%s", instanceName, err))
+			continue
+		}
+		instanceState = *instanceDetails.DBInstanceStatus
+		log.Println(fmt.Sprintf("Found instance state: %s after waiting: ", instanceState))
+	}
+	return nil
 }
 
 func (this *RDSSnapshotService) DeleteInstance(
