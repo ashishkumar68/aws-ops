@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/ashishkumar68/aws-ops/awsClient"
 	"github.com/ashishkumar68/aws-ops/controller"
 	"github.com/gorilla/mux"
 	"log"
@@ -10,9 +11,13 @@ import (
 )
 
 func main() {
+	// start resnap message listener
+	snapshotService := awsClient.NewRDSSnapshotService()
+	go snapshotService.RunResnapMessageListener()
+
 	port := os.Getenv("HTTP_PORT")
 	r := mux.NewRouter()
-	r.HandleFunc("/resnap-database-tracks", controller.ResnapRDSByName).Methods("POST")
+	r.HandleFunc("/resnap-database", controller.ResnapRDSByName).Methods("POST")
 
 	http.Handle("/", r)
 	err := http.ListenAndServe(fmt.Sprintf(":%s", port), r)

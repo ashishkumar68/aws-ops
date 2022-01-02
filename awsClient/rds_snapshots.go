@@ -11,6 +11,8 @@ import (
 
 var (
 	INSTANCE_STATE_AVAILABLE = "available"
+
+	rdsResnapMessageChan chan types.DBInstance
 )
 
 func GetNewRDSSnapshotService(rdsClient *rds.Client) *RDSSnapshotService {
@@ -121,9 +123,10 @@ func (this *RDSSnapshotService) RenameInstance(
 	return modifyInstanceOut.DBInstance, nil
 }
 
-func (this *RDSSnapshotService) RunResnapMessageListener(rdsInstanceChan <-chan types.DBInstance) {
-	log.Println("started resnap listener.")
-	for rdsInstance := range rdsInstanceChan {
+func (this *RDSSnapshotService) RunResnapMessageListener() {
+	log.Println("started resnap message listener.")
+
+	for rdsInstance := range rdsResnapMessageChan {
 		oldInstanceName := *rdsInstance.DBInstanceIdentifier + "-old"
 		oldInstance, err := this.RenameInstance(rdsInstance, oldInstanceName)
 		if err != nil {
@@ -200,4 +203,11 @@ func (this *RDSSnapshotService) DeleteInstance(
 	}
 
 	return deleteDBInstanceOut.DBInstance, nil
+}
+
+func PublishNewResnapInstanceMessage(dbInstance types.DBInstance) {
+	if *dbInstance.DBInstanceStatus != INSTANCE_STATE_AVAILABLE {
+		return
+	}
+	rdsResnapMessageChan <- dbInstance
 }

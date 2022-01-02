@@ -15,31 +15,19 @@ func ResnapRDSByName(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	snapshotService := awsClient.NewRDSSnapshotService()
-	prodRdsName := "test-prod"
-	currentRdsInstance, err := snapshotService.GetRDSInstanceDetails(prodRdsName)
+	rdsInstance, err := snapshotService.GetRDSInstanceDetails(rdsName)
 	if err != nil {
-		msg := fmt.Sprintf("RDS Instance with name:'%s'doesn't exist.", prodRdsName)
+		msg := fmt.Sprintf("RDS Instance with name:'%s'doesn't exist.", rdsName)
 		log.Println(msg)
 		_, _ = io.WriteString(res, msg)
 		return
 	}
-	lastSnapshot, err := snapshotService.GetLastRDSInstanceSnapshot(*currentRdsInstance.DBInstanceIdentifier)
-	if err != nil {
-		log.Println(err)
-		_,_ =io.WriteString(res, fmt.Sprintf("could not fetch last snapshot due to error: %s", err))
+	if *rdsInstance.DBInstanceStatus != awsClient.INSTANCE_STATE_AVAILABLE {
+		msg := fmt.Sprintf("RDS Instance:'%s' is not in '%s' state.", rdsName, awsClient.INSTANCE_STATE_AVAILABLE)
+		log.Println(msg)
+		_, _ = io.WriteString(res, msg)
 		return
 	}
-	dbInstance, err := snapshotService.RestoreInstanceBySnapshot(rdsName, lastSnapshot)
-	if err != nil {
-		log.Println(err)
-		_,_ =io.WriteString(res, fmt.Sprintf("could not restore instance from snapshot due to error: %s", err))
-		return
-	}
-	dbInstance, err = snapshotService.ApplySecurityGroupToInstance(*dbInstance.DBInstanceIdentifier, []string{"default"})
-	if err != nil {
-		log.Println(err)
-		_,_ = io.WriteString(res, fmt.Sprintf("could not apply security group to instance due to error: %s", err))
-		return
-	}
-	_,_ =io.WriteString(res, fmt.Sprintf("started rds:%s resnap", *dbInstance.DBInstanceIdentifier))
+	awsClient.PublishNewResnapInstanceMessage(rdsInstance)
+	io.WriteString(res, fmt.Sprintf("initiated resnap for instance: %s", rdsName))
 }
